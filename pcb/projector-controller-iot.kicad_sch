@@ -4747,6 +4747,26 @@
 	)
 	(wire
 		(pts
+			(xy 184.15 76.2) (xy 195.58 76.2)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "40dd4008-7bcc-40f2-8fe8-6191060592b6")
+	)
+	(wire
+		(pts
+			(xy 184.15 78.74) (xy 191.77 78.74)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "4183f894-6b4a-4d17-85dd-a20fdf4b9b45")
+	)
+	(wire
+		(pts
 			(xy 201.93 139.7) (xy 208.28 139.7)
 		)
 		(stroke
@@ -4774,16 +4794,6 @@
 			(type default)
 		)
 		(uuid "494d557a-8176-4738-90f3-f8d1c474ac08")
-	)
-	(wire
-		(pts
-			(xy 184.15 88.9) (xy 201.93 88.9)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "4a936650-6df6-4216-a61d-15d35ee63d9e")
 	)
 	(wire
 		(pts
@@ -5077,16 +5087,6 @@
 	)
 	(wire
 		(pts
-			(xy 184.15 93.98) (xy 201.93 93.98)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "9ca0ffab-9931-4a91-a09c-b8a2838645b4")
-	)
-	(wire
-		(pts
 			(xy 228.6 124.46) (xy 231.14 124.46)
 		)
 		(stroke
@@ -5127,6 +5127,16 @@
 	)
 	(wire
 		(pts
+			(xy 191.77 93.98) (xy 201.93 93.98)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a5810da8-a7f5-494e-80a8-0d38d6801301")
+	)
+	(wire
+		(pts
 			(xy 226.06 88.9) (xy 220.98 88.9)
 		)
 		(stroke
@@ -5147,6 +5157,16 @@
 	)
 	(wire
 		(pts
+			(xy 191.77 93.98) (xy 191.77 78.74)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "b18a894a-06c7-458f-b6bc-7b407ca3018c")
+	)
+	(wire
+		(pts
 			(xy 138.43 36.83) (xy 148.59 36.83)
 		)
 		(stroke
@@ -5154,6 +5174,16 @@
 			(type default)
 		)
 		(uuid "b3299ae2-34d8-4f3f-9446-888b5fa1e044")
+	)
+	(wire
+		(pts
+			(xy 195.58 88.9) (xy 201.93 88.9)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "b85bda57-5ff7-4e86-8b26-01fac63d134e")
 	)
 	(wire
 		(pts
@@ -5464,6 +5494,16 @@
 			(type default)
 		)
 		(uuid "f9d4ac14-d8a1-43a3-aee4-409a6e287790")
+	)
+	(wire
+		(pts
+			(xy 195.58 76.2) (xy 195.58 88.9)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "fc92c593-fb66-472a-aff4-f7e8201ed3a7")
 	)
 	(label "TX"
 		(at 255.27 142.24 0)
