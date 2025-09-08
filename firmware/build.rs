@@ -1,4 +1,12 @@
 fn main() {
+    dotenvy::dotenv().ok();
+
+    let ssid = std::env::var("SSID").expect("SSID not set in .env or elsewhere");
+    let password = std::env::var("PASSWORD").expect("PASSWORD not set in .env or elsewhere");
+
+    println!("cargo:rustc-env=SSID={}", ssid);
+    println!("cargo:rustc-env=PASSWORD={}", password);
+
     linker_be_nice();
     // make sure linkall.x is the last linker script (otherwise might cause problems with flip-link)
     println!("cargo:rustc-link-arg=-Tlinkall.x");
