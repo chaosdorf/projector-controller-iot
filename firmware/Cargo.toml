@@ -17,6 +17,7 @@ embassy-net = { version = "0.7.0", features = [
   "medium-ethernet",
   "tcp",
   "udp",
+  "dns"
 ] }
 embedded-io = "0.6.1"
 embedded-io-async = "0.6.1"
@@ -24,7 +25,7 @@ esp-alloc = "0.8.0"
 # for more networking protocol support see https://crates.io/crates/edge-net
 critical-section = "1.2.0"
 embassy-executor = { version = "0.7.0", features = ["task-arena-size-20480"] }
-embassy-time = "0.4.0"
+embassy-time = "0.5.0"
 esp-hal-embassy = { version = "0.9.0", features = ["esp32c3"] }
 esp-wifi = { version = "0.15.0", features = [
   "builtin-scheduler",
@@ -46,8 +47,10 @@ smoltcp = { version = "0.12.0", default-features = false, features = [
   "socket-udp",
 ] }
 static_cell = { version = "2.1.1", features = ["nightly"] }
-esp-println = { version = "0.15.0", features = ["esp32c3", "log-04"] }
+esp-println = { version = "0.15.0", features = ["esp32c3", "log-04", "defmt-espflash", "timestamp"] }
 esp-backtrace = { version = "0.17.0", features = ["defmt"] }
+rust-mqtt = { version = "0.3.0", features = ["defmt", "no_std", "tls"], default-features = false }
+defmt = "1.0.1"
 
 
 [profile.dev]

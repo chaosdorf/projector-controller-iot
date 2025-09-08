@@ -7,15 +7,23 @@
 )]
 
 use embassy_executor::Spawner;
+use embassy_net::tcp::TcpSocket;
 use embassy_net::StackResources;
 use embassy_time::{Duration, Timer};
+use embedded_io_async::{Read, Write};
 use esp_hal::clock::CpuClock;
+use esp_hal::gpio::{Output, OutputConfig};
 use esp_hal::rng::Rng;
 use esp_hal::timer::systimer::SystemTimer;
 use esp_hal::timer::timg::TimerGroup;
 use esp_println::println;
 use esp_wifi::EspWifiController;
+use rust_mqtt::client::client::MqttClient;
+use rust_mqtt::client::client_config::ClientConfig;
+use rust_mqtt::utils::rng_generator::CountingRng;
 
+// mod mqtt;
+mod log;
 mod net;
 
 #[panic_handler]
@@ -43,8 +51,16 @@ async fn main(spawner: Spawner) {
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
 
+    // GPIOs
+    let mut led = Output::new(
+        peripherals.GPIO8,
+        esp_hal::gpio::Level::Low,
+        OutputConfig::default(),
+    );
+
     esp_alloc::heap_allocator!(size: 64 * 1024);
 
+    // WIFI
     let timer0 = SystemTimer::new(peripherals.SYSTIMER);
     esp_hal_embassy::init(timer0.alarm0);
 
@@ -75,9 +91,6 @@ async fn main(spawner: Spawner) {
     spawner.spawn(net::connection(controller)).ok();
     spawner.spawn(net::net_task(runner)).ok();
 
-    let mut rx_buffer = [0; 4096];
-    let mut tx_buffer = [0; 4096];
-
     loop {
         if stack.is_link_up() {
             break;
@@ -91,16 +104,72 @@ async fn main(spawner: Spawner) {
             println!("Got IP: {}", config.address);
             break;
         }
-        Timer::after(Duration::from_millis(500)).await;
     }
 
     // TODO: Spawn some tasks
     let _ = spawner;
 
-    // log onto wifi
+    let mut rx_buffer = [0; 4096];
+    let mut tx_buffer = [0; 4096];
+
+    let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
+
+    socket.set_timeout(Some(embassy_time::Duration::from_secs(10)));
+
+    let broker_addr = stack
+        .dns_query(env!("MQTT_BROKER"), smoltcp::wire::DnsQueryType::A)
+        .await
+        .unwrap();
+    let broker_endpoint = (broker_addr[0], 1883);
+
+    println!("Connecting to broker...");
+
+    let r = socket.connect(broker_endpoint).await;
+    if let Err(e) = r {
+        println!("Failed to connect to broker: {:?}", e);
+
+        loop {
+            led.toggle();
+            Timer::after(Duration::from_millis(100)).await;
+        }
+    }
+
+    println!("Connected to broker!");
+
+    let mut mqtt_config = ClientConfig::new(
+        rust_mqtt::client::client_config::MqttVersion::MQTTv5,
+        CountingRng(20000),
+    );
+    mqtt_config
+        .add_max_subscribe_qos(rust_mqtt::packet::v5::publish_packet::QualityOfService::QoS1);
+    mqtt_config.add_client_id("projector-controller");
+    // config.add_username(USERNAME);
+    // config.add_password(PASSWORD);
+    mqtt_config.max_packet_size = 100;
+
+    let mut mqtt_rx_buf = [0; 80];
+    let mut mqtt_tx_buf = [0; 80];
+
+    let mut client = MqttClient::<_, 5, _>::new(
+        socket,
+        &mut mqtt_tx_buf,
+        80,
+        &mut mqtt_rx_buf,
+        80,
+        mqtt_config,
+    );
+
+    client.connect_to_broker().await.unwrap();
+    println!("Connected to MQTT broker");
+
+    client
+        .subscribe_to_topic("projector-controller/#")
+        .await
+        .unwrap();
 
     loop {
-        Timer::after(Duration::from_secs(1)).await;
+        let (topic, data) = client.receive_message().await.unwrap();
+        defmt::println!("Received on topic {}: {:?}", topic, data);
     }
 
     // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/esp-hal-v1.0.0-rc.0/examples/src/bin

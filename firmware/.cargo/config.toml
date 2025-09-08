@@ -12,6 +12,10 @@ runner = "espflash flash --monitor --chip esp32c3"
 # rustflags = [
 #   "-C", "link-arg=-nostartfiles",
 # ]
+rustflags = [
+  # --- ADD following new flag ---
+  "-C", "link-arg=-Tdefmt.x",
+]
 
 target = "riscv32imc-unknown-none-elf"
 

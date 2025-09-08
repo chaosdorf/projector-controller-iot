@@ -166,6 +166,15 @@ dependencies = [
 
 [[package]]
 name = "defmt"
+version = "0.3.100"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0963443817029b2024136fc4dd07a5107eb8f977eaf18fcd1fdeb11306b64ad"
+dependencies = [
+ "defmt 1.0.1",
+]
+
+[[package]]
+name = "defmt"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "548d977b6da32fa1d1fda2876453da1e7df63ad0304c8b3dae4dbe7b96f39b78"
@@ -537,7 +546,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5f270a29a3c4e492399b13e157b10151a7616cba69c4d554076ea93ed1bd2916"
 dependencies = [
  "cfg-if",
- "defmt",
+ "defmt 1.0.1",
  "esp-config",
  "heapless",
 ]
@@ -688,6 +697,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3e7e3ab41e96093d7fd307e93bfc88bd646a8ff23036ebf809e116b18869f719"
 dependencies = [
  "critical-section",
+ "defmt 1.0.1",
  "document-features",
  "esp-metadata-generated",
  "log",
@@ -833,10 +843,11 @@ name = "firmware"
 version = "0.1.0"
 dependencies = [
  "critical-section",
+ "defmt 1.0.1",
  "dotenvy",
  "embassy-executor",
  "embassy-net",
- "embassy-time 0.4.0",
+ "embassy-time 0.5.0",
  "embedded-io",
  "embedded-io-async",
  "esp-alloc",
@@ -846,6 +857,7 @@ dependencies = [
  "esp-hal-embassy",
  "esp-println",
  "esp-wifi",
+ "rust-mqtt",
  "smoltcp",
  "static_cell",
 ]
@@ -1236,6 +1248,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "rust-mqtt"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f71160765f368fd9a84e0955e2ddb6d64ac9018fee1c5323354d6d08c816b40"
+dependencies = [
+ "defmt 0.3.100",
+ "embedded-io",
+ "embedded-io-async",
+ "heapless",
+ "rand_core 0.6.4",
 ]
 
 [[package]]
