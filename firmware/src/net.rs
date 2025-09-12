@@ -1,6 +1,3 @@
-#![no_std]
-#![no_main]
-
 use core::net::Ipv4Addr;
 
 use embassy_executor::Spawner;
@@ -30,6 +27,7 @@ macro_rules! mk_static {
 const SSID: &str = env!("SSID");
 const PASSWORD: &str = env!("PASSWORD");
 
+// connects to the wifi and maintains the connection
 #[embassy_executor::task]
 pub async fn connection(mut controller: WifiController<'static>) {
     println!("start connection task");

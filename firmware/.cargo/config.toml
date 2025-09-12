@@ -9,15 +9,13 @@ runner = "espflash flash --monitor --chip esp32c3"
 [build]
 # add in for esp32s3 again
 #
-# rustflags = [
-#   "-C", "link-arg=-nostartfiles",
-# ]
 rustflags = [
   # --- ADD following new flag ---
   "-C", "link-arg=-Tdefmt.x",
+  "-C", "link-arg=-nostartfiles",
 ]
 
-target = "riscv32imc-unknown-none-elf"
+target = "xtensa-esp32s3-none-elf"
 
 [unstable]
 build-std = ["alloc", "core"]
