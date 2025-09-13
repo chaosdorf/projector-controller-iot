@@ -78,9 +78,9 @@ async fn homassistant_initialization(
 
     for (id, name) in buttons {
         let data = json!({
-            "name": format_args!("Projector {}", name), // compile-time friendly
-            "unique_id": format_args!("projector_{}", id),
-            "command_topic": format_args!("projector-controller/cmd/{}", id),
+            "name": alloc::format!("Projector {}", name), // compile-time friendly
+            "unique_id": alloc::format!("projector_{}", id),
+            "command_topic": alloc::format!("projector-controller/cmd/{}", id),
             "availability_topic": "projector-controller/availability",
         });
 
@@ -95,13 +95,9 @@ async fn homassistant_initialization(
             _ => continue,
         };
 
-        topics
-            .push(
-                format_args!("projector-controller/cmd/{}", id)
-                    .as_str()
-                    .unwrap(),
-            )
-            .unwrap();
+        debug!("Publishing {} config (data: {})", id, data.as_str());
+
+        topics.push(topic).unwrap();
 
         publish_config(client, topic, &data).await;
 
@@ -194,13 +190,14 @@ pub async fn mqtt_task(stack: Stack<'static>) {
         rust_mqtt::client::client_config::MqttVersion::MQTTv5,
         CountingRng(20000),
     );
-    // mqtt_config
-    //     .add_max_subscribe_qos(rust_mqtt::packet::v5::publish_packet::QualityOfService::QoS1);
+    mqtt_config
+        .add_max_subscribe_qos(rust_mqtt::packet::v5::publish_packet::QualityOfService::QoS0);
     mqtt_config.add_client_id("projector-controller");
     // config.add_username(USERNAME);
     // config.add_password(PASSWORD);
     // mqtt_config.max_packet_size = 900;
 
+    // this has to be weird and unsafe so client can be passed around (?)
     static mut TX_BUF: [u8; 2048] = [0; 2048];
     static mut RX_BUF: [u8; 2048] = [0; 2048];
 
