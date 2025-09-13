@@ -53,6 +53,7 @@ serde = { version = "1.0.219", default-features = false, features = ["alloc", "d
 serde_json = { version = "1.0.143", default-features = false, features = ["alloc"] }
 embassy-sync = "0.7.2"
 heapless = "0.9.1"
+serde-json-core = "0.6.0"
 
 
 [profile.dev]

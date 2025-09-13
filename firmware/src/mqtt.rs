@@ -10,6 +10,8 @@ use rust_mqtt::{
     utils::rng_generator::CountingRng,
 };
 use serde::Serialize;
+use serde_json::json;
+use serde_json_core::to_slice;
 
 use crate::io::{self, LED1};
 
@@ -29,35 +31,77 @@ struct DiscoveryPacket<'a> {
     retain: bool,
 }
 
-async fn send_discovery_packet(client: &mut MqttClient<'static, TcpSocket<'_>, 5, CountingRng>) {
-    let data = DiscoveryPacket {
-        unique_id: "projector-controller",
-        name: "Projector Controller",
-        state_topic: "projector-controller/state",
-        command_topic: "projector-controller/command",
-        availability_topic: "projector-controller/availability",
-        payload_on: "ON",
-        payload_off: "OFF",
-        state_on: "ON",
-        state_off: "OFF",
-        optimistic: false,
-        qos: 0,
-        retain: true,
-    };
+async fn send_discovery_packets(client: &mut MqttClient<'static, TcpSocket<'_>, 5, CountingRng>) {
+    // Power switch
+    let power = json!({
+        "name": "Projector Power",
+        "unique_id": "projector_power",
+        "command_topic": "projector-controller/cmnd/power",
+        "state_topic": "projector-controller/stat/power",
+        "availability_topic": "projector-controller/availability",
+        "payload_on": "ON",
+        "payload_off": "OFF",
+        "state_on": "ON",
+        "state_off": "OFF",
+        "optimistic": false
+    });
+    publish_config(
+        client,
+        "homeassistant/switch/projector_power/config",
+        &power,
+    )
+    .await;
 
-    let json = serde_json::to_string(&data).unwrap();
-    client
-        .send_message(
-            "homeassistant/switch/projector-controller/config",
-            json.as_bytes(),
-            QualityOfService::QoS0,
-            true,
-        )
-        .await
-        .unwrap();
+    // Projector control buttons (all high-level, no RS232 codes here)
+    let buttons: &[(&str, &str)] = &[
+        ("menu", "Menu"),
+        ("enter", "Enter"),
+        ("up", "Up"),
+        ("down", "Down"),
+        ("left", "Left"),
+        ("right", "Right"),
+        ("back", "Back"),
+    ];
 
-    println!("Sent discovery packet: {}", json);
+    for (id, name) in buttons {
+        let data = json!({
+            "name": format_args!("Projector {}", name), // compile-time friendly
+            "unique_id": format_args!("projector_{}", id),
+            "command_topic": format_args!("projector-controller/cmnd/{}", id),
+            "availability_topic": "projector-controller/availability",
+        });
 
+        let topic = match *id {
+            "menu" => "homeassistant/button/projector_menu/config",
+            "enter" => "homeassistant/button/projector_enter/config",
+            "up" => "homeassistant/button/projector_up/config",
+            "down" => "homeassistant/button/projector_down/config",
+            "left" => "homeassistant/button/projector_left/config",
+            "right" => "homeassistant/button/projector_right/config",
+            "back" => "homeassistant/button/projector_back/config",
+            _ => continue,
+        };
+
+        publish_config(client, topic, &data).await;
+    }
+
+    // Binary sensor for actual power state
+    let status = json!({
+        "name": "Projector Status",
+        "unique_id": "projector_status",
+        "state_topic": "projector-controller/stat/status",
+        "payload_on": "ON",
+        "payload_off": "OFF",
+        "availability_topic": "projector-controller/availability"
+    });
+    publish_config(
+        client,
+        "homeassistant/binary_sensor/projector_status/config",
+        &status,
+    )
+    .await;
+
+    // Device availability
     client
         .send_message(
             "projector-controller/availability",
@@ -66,7 +110,21 @@ async fn send_discovery_packet(client: &mut MqttClient<'static, TcpSocket<'_>, 5
             true,
         )
         .await
-        .unwrap()
+        .unwrap();
+}
+
+/// Serialize JSON into fixed buffer and publish (no alloc, no format!)
+async fn publish_config(
+    client: &mut MqttClient<'static, TcpSocket<'_>, 5, CountingRng>,
+    topic: &str,
+    data: &serde_json::Value,
+) {
+    let mut buf = [0u8; 512]; // adjust if JSON grows
+    let used = to_slice(data, &mut buf).unwrap();
+    client
+        .send_message(topic, &buf[..used], QualityOfService::QoS0, true)
+        .await
+        .unwrap();
 }
 
 #[embassy_executor::task]
@@ -133,7 +191,7 @@ pub async fn mqtt_task(stack: Stack<'static>) {
 
     println!("Subscribed to topic");
 
-    send_discovery_packet(&mut client).await;
+    send_discovery_packets(&mut client).await;
     println!("Sent discovery packet");
 
     loop {
