@@ -41,7 +41,7 @@ async fn send_discovery_packet(client: &mut MqttClient<'static, TcpSocket<'_>, 5
         state_on: "ON",
         state_off: "OFF",
         optimistic: false,
-        qos: 1,
+        qos: 0,
         retain: true,
     };
 
@@ -106,8 +106,8 @@ pub async fn mqtt_task(stack: Stack<'static>) {
         rust_mqtt::client::client_config::MqttVersion::MQTTv5,
         CountingRng(20000),
     );
-    mqtt_config
-        .add_max_subscribe_qos(rust_mqtt::packet::v5::publish_packet::QualityOfService::QoS1);
+    // mqtt_config
+    //     .add_max_subscribe_qos(rust_mqtt::packet::v5::publish_packet::QualityOfService::QoS1);
     mqtt_config.add_client_id("projector-controller");
     // config.add_username(USERNAME);
     // config.add_password(PASSWORD);

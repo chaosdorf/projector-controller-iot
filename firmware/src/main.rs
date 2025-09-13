@@ -20,6 +20,7 @@ mod io;
 mod log;
 mod mqtt;
 mod net;
+mod projector;
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -54,7 +55,7 @@ async fn main(spawner: Spawner) {
     );
 
     let led2 = Output::new(
-        peripherals.GPIO7,
+        peripherals.GPIO8,
         esp_hal::gpio::Level::Low,
         OutputConfig::default(),
     );
@@ -63,7 +64,28 @@ async fn main(spawner: Spawner) {
         *(io::LED1.lock().await) = Some(led1);
         *(io::LED2.lock().await) = Some(led2);
     }
+
     esp_alloc::heap_allocator!(size: 64 * 1024);
+
+    ///////////////////////////////////////////////////////////////////////////
+    // PT-AH1000E
+    ///////////////////////////////////////////////////////////////////////////
+
+    // UART1
+    let uart1 = esp_hal::uart::Uart::new(
+        peripherals.UART1,
+        esp_hal::uart::config::Config {
+            baudrate: 9600,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    let mut projector = projector::Projector::new(uart1);
+
+    {
+        *(io::PROJECTOR.lock().await) = Some(projector);
+    }
 
     // WIFI
     let timer0 = SystemTimer::new(peripherals.SYSTIMER);
@@ -76,6 +98,8 @@ async fn main(spawner: Spawner) {
         EspWifiController<'static>,
         esp_wifi::init(timg0.timer0, rng.clone()).unwrap()
     );
+
+    // test leds
 
     let (controller, interfaces) = esp_wifi::wifi::new(&esp_wifi_ctrl, peripherals.WIFI).unwrap();
 
