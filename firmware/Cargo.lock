@@ -883,6 +883,7 @@ dependencies = [
  "defmt 1.0.1",
  "dotenvy",
  "embassy-executor",
+ "embassy-futures",
  "embassy-net",
  "embassy-sync 0.7.2",
  "embassy-time 0.5.0",

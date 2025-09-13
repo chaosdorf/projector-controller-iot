@@ -1,4 +1,5 @@
 use defmt::{debug, error, info, warn};
+use embassy_futures::select::{select, Either};
 use embassy_net::{tcp::TcpSocket, Stack};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::mutex::Mutex;
@@ -85,13 +86,13 @@ async fn homassistant_initialization(
         });
 
         let topic = match *id {
-            "menu" => "homeassistant/button/projector_menu/config",
-            "enter" => "homeassistant/button/projector_enter/config",
-            "up" => "homeassistant/button/projector_up/config",
-            "down" => "homeassistant/button/projector_down/config",
-            "left" => "homeassistant/button/projector_left/config",
-            "right" => "homeassistant/button/projector_right/config",
-            "back" => "homeassistant/button/projector_back/config",
+            "menu" => "homeassistant/button/projector_menu",
+            "enter" => "homeassistant/button/projector_enter",
+            "up" => "homeassistant/button/projector_up",
+            "down" => "homeassistant/button/projector_down",
+            "left" => "homeassistant/button/projector_left",
+            "right" => "homeassistant/button/projector_right",
+            "back" => "homeassistant/button/projector_back",
             _ => continue,
         };
 
@@ -99,7 +100,7 @@ async fn homassistant_initialization(
 
         topics.push(topic).unwrap();
 
-        publish_config(client, topic, &data).await;
+        publish_config(client, alloc::format!("{}/config", topic).as_str(), &data).await;
 
         debug!("Published {} config", id);
     }
@@ -137,6 +138,8 @@ async fn homassistant_initialization(
 
     // Subscribe to command topics
     client.subscribe_to_topics(&topics).await.unwrap();
+
+    debug!("Subscribed to topics ({=[?]})", &topics);
 }
 
 /// Serialize JSON into fixed buffer and publish (no alloc, no format!)
@@ -190,22 +193,22 @@ pub async fn mqtt_task(stack: Stack<'static>) {
         rust_mqtt::client::client_config::MqttVersion::MQTTv5,
         CountingRng(20000),
     );
-    mqtt_config
-        .add_max_subscribe_qos(rust_mqtt::packet::v5::publish_packet::QualityOfService::QoS0);
+    // mqtt_config
+    //     .add_max_subscribe_qos(rust_mqtt::packet::v5::publish_packet::QualityOfService::QoS0);
     mqtt_config.add_client_id("projector-controller");
     // config.add_username(USERNAME);
     // config.add_password(PASSWORD);
     // mqtt_config.max_packet_size = 900;
 
     // this has to be weird and unsafe so client can be passed around (?)
-    static mut TX_BUF: [u8; 2048] = [0; 2048];
-    static mut RX_BUF: [u8; 2048] = [0; 2048];
+    static mut TX_BUF: [u8; 4096] = [0; 4096];
+    static mut RX_BUF: [u8; 4096] = [0; 4096];
 
     let tx_buf = unsafe { &mut TX_BUF };
     let rx_buf = unsafe { &mut RX_BUF };
 
     let mut client =
-        MqttClient::<'_, _, 5, _>::new(socket, tx_buf, 2048, rx_buf, 2048, mqtt_config);
+        MqttClient::<'_, _, 5, _>::new(socket, tx_buf, 4096, rx_buf, 4096, mqtt_config);
 
     client.connect_to_broker().await.unwrap();
     info!("Connected to MQTT server!");
@@ -217,57 +220,73 @@ pub async fn mqtt_task(stack: Stack<'static>) {
     let projector = projector.as_mut().unwrap();
 
     loop {
-        println!("Waiting for message...");
-        let (topic, data) = client.receive_message().await.unwrap();
-        defmt::println!("Received on topic {}: {:?}", topic, data);
+        match select(client.receive_message(), Timer::after_secs(2)).await {
+            Either::First(msg) => {
+                let (topic, data) = msg.unwrap();
+                info!("Received on topic {}: {:?}", topic, data);
 
-        // FIXME: do not block for 20ms lolololol
-        io::blink_led2_ms(20).await;
+                // FIXME: do not block for 20ms lolololol
+                io::blink_led2_ms(20).await;
 
-        match topic {
-            "projector-controller/cmd/power" => {
-                let msg = core::str::from_utf8(data).unwrap();
-                println!("State message: {}", msg);
+                match topic {
+                    "projector-controller/cmd/power" => {
+                        let msg = core::str::from_utf8(data).unwrap();
+                        println!("State message: {}", msg);
 
-                // Clone to break the borrow
-                let data_owned = data.to_vec();
+                        // Clone to break the borrow
+                        let data_owned = data.to_vec();
 
-                match msg {
-                    "ON" => {
-                        if let Err(_) = projector.power_on() {
-                            error!("Failed to send power on command");
-                            continue;
-                        } else {
-                            info!("Sent power on command");
+                        match msg {
+                            "ON" => {
+                                if let Err(_) = projector.power_on() {
+                                    error!("Failed to send power on command");
+                                    continue;
+                                } else {
+                                    info!("Sent power on command");
+                                }
+                            }
+                            "OFF" => {
+                                if let Err(_) = projector.power_off() {
+                                    error!("Failed to send power off command");
+                                    continue;
+                                } else {
+                                    info!("Sent power off command");
+                                }
+                            }
+                            _ => {
+                                warn!("Unknown power command: {}", msg);
+                            }
                         }
-                    }
-                    "OFF" => {
-                        if let Err(_) = projector.power_off() {
-                            error!("Failed to send power off command");
-                            continue;
-                        } else {
-                            info!("Sent power off command");
-                        }
+
+                        client
+                            .send_message(
+                                "projector-controller/stat/power",
+                                &data_owned,
+                                QualityOfService::QoS0,
+                                true,
+                            )
+                            .await
+                            .unwrap();
+
+                        info!("Published state message: {=[?]}", &data_owned);
                     }
                     _ => {
-                        warn!("Unknown power command: {}", msg);
+                        info!("Unknown topic: {}", topic);
                     }
                 }
-
+            }
+            Either::Second(()) => {
+                // periodically send availability
                 client
                     .send_message(
-                        "projector-controller/state",
-                        &data_owned,
+                        "projector-controller/availability",
+                        b"online",
                         QualityOfService::QoS0,
                         true,
                     )
                     .await
                     .unwrap();
-
-                info!("Published state message: {=[?]}", &data_owned);
-            }
-            _ => {
-                info!("Unknown topic: {}", topic);
+                debug!("Published availability online");
             }
         }
     }
