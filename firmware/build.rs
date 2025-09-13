@@ -5,10 +5,12 @@ fn main() {
     let password = std::env::var("PASSWORD").expect("PASSWORD not set in .env or elsewhere");
     let mqtt_broker =
         std::env::var("MQTT_BROKER").expect("MQTT_BROKER not set in .env or elsewhere");
+    let defmt_log = std::env::var("DEFMT_LOG").unwrap_or_else(|_| "info".to_string());
 
     println!("cargo:rustc-env=SSID={}", ssid);
     println!("cargo:rustc-env=PASSWORD={}", password);
     println!("cargo:rustc-env=MQTT_BROKER={}", mqtt_broker);
+    println!("cargo:rustc-env=DEFMT_LOG={}", defmt_log);
 
     linker_be_nice();
     // make sure linkall.x is the last linker script (otherwise might cause problems with flip-link)

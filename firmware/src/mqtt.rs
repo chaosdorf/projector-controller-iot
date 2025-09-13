@@ -1,9 +1,11 @@
-use defmt::info;
+use defmt::{debug, error, info, warn};
 use embassy_net::{tcp::TcpSocket, Stack};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::mutex::Mutex;
 use embassy_time::{Duration, Timer};
+use esp_hal::xtensa_lx::debug_break;
 use esp_println::println;
+use heapless::Vec;
 use rust_mqtt::{
     client::{client::MqttClient, client_config::ClientConfig},
     packet::v5::publish_packet::QualityOfService,
@@ -31,12 +33,19 @@ struct DiscoveryPacket<'a> {
     retain: bool,
 }
 
-async fn send_discovery_packets(client: &mut MqttClient<'static, TcpSocket<'_>, 5, CountingRng>) {
+// send Home Assistant MQTT discovery packets and subscribe to command topics
+async fn homassistant_initialization(
+    client: &mut MqttClient<'static, TcpSocket<'_>, 5, CountingRng>,
+) {
+    // what. in. the. actual. fuck.
+    // why does this need *serde_json_core::heapless::Vec* instead of heapless::Vec??????
+    let mut topics = serde_json_core::heapless::Vec::<&str, 16>::new();
+
     // Power switch
     let power = json!({
         "name": "Projector Power",
         "unique_id": "projector_power",
-        "command_topic": "projector-controller/cmnd/power",
+        "command_topic": "projector-controller/cmd/power",
         "state_topic": "projector-controller/stat/power",
         "availability_topic": "projector-controller/availability",
         "payload_on": "ON",
@@ -51,6 +60,10 @@ async fn send_discovery_packets(client: &mut MqttClient<'static, TcpSocket<'_>, 
         &power,
     )
     .await;
+
+    topics.push("projector-controller/cmd/power").unwrap();
+
+    debug!("Published power config");
 
     // Projector control buttons (all high-level, no RS232 codes here)
     let buttons: &[(&str, &str)] = &[
@@ -67,7 +80,7 @@ async fn send_discovery_packets(client: &mut MqttClient<'static, TcpSocket<'_>, 
         let data = json!({
             "name": format_args!("Projector {}", name), // compile-time friendly
             "unique_id": format_args!("projector_{}", id),
-            "command_topic": format_args!("projector-controller/cmnd/{}", id),
+            "command_topic": format_args!("projector-controller/cmd/{}", id),
             "availability_topic": "projector-controller/availability",
         });
 
@@ -82,7 +95,17 @@ async fn send_discovery_packets(client: &mut MqttClient<'static, TcpSocket<'_>, 
             _ => continue,
         };
 
+        topics
+            .push(
+                format_args!("projector-controller/cmd/{}", id)
+                    .as_str()
+                    .unwrap(),
+            )
+            .unwrap();
+
         publish_config(client, topic, &data).await;
+
+        debug!("Published {} config", id);
     }
 
     // Binary sensor for actual power state
@@ -101,6 +124,8 @@ async fn send_discovery_packets(client: &mut MqttClient<'static, TcpSocket<'_>, 
     )
     .await;
 
+    debug!("Published status config");
+
     // Device availability
     client
         .send_message(
@@ -111,6 +136,11 @@ async fn send_discovery_packets(client: &mut MqttClient<'static, TcpSocket<'_>, 
         )
         .await
         .unwrap();
+
+    debug!("Published availability online");
+
+    // Subscribe to command topics
+    client.subscribe_to_topics(&topics).await.unwrap();
 }
 
 /// Serialize JSON into fixed buffer and publish (no alloc, no format!)
@@ -142,7 +172,7 @@ pub async fn mqtt_task(stack: Stack<'static>) {
         .unwrap();
     let broker_endpoint = (broker_addr[0], 1883);
 
-    println!("Connecting to broker...");
+    info!("Connecting to broker...");
 
     let r = socket.connect(broker_endpoint).await;
     if let Err(e) = r {
@@ -159,7 +189,7 @@ pub async fn mqtt_task(stack: Stack<'static>) {
         }
     }
 
-    println!("Connected to broker!");
+    info!("Connected to broker!");
     let mut mqtt_config = ClientConfig::new(
         rust_mqtt::client::client_config::MqttVersion::MQTTv5,
         CountingRng(20000),
@@ -181,18 +211,13 @@ pub async fn mqtt_task(stack: Stack<'static>) {
         MqttClient::<'_, _, 5, _>::new(socket, tx_buf, 2048, rx_buf, 2048, mqtt_config);
 
     client.connect_to_broker().await.unwrap();
-    println!("Connected to MQTT server!");
+    info!("Connected to MQTT server!");
 
-    client
-        .subscribe_to_topic("projector-controller/command")
-        .await
-        .unwrap();
-    println!("Subscribed to command topic");
+    homassistant_initialization(&mut client).await;
+    info!("Sent discovery packet");
 
-    println!("Subscribed to topic");
-
-    send_discovery_packets(&mut client).await;
-    println!("Sent discovery packet");
+    let mut projector = io::PROJECTOR.lock().await;
+    let projector = projector.as_mut().unwrap();
 
     loop {
         println!("Waiting for message...");
@@ -203,12 +228,34 @@ pub async fn mqtt_task(stack: Stack<'static>) {
         io::blink_led2_ms(20).await;
 
         match topic {
-            "projector-controller/command" => {
+            "projector-controller/cmd/power" => {
                 let msg = core::str::from_utf8(data).unwrap();
                 println!("State message: {}", msg);
 
                 // Clone to break the borrow
                 let data_owned = data.to_vec();
+
+                match msg {
+                    "ON" => {
+                        if let Err(_) = projector.power_on() {
+                            error!("Failed to send power on command");
+                            continue;
+                        } else {
+                            info!("Sent power on command");
+                        }
+                    }
+                    "OFF" => {
+                        if let Err(_) = projector.power_off() {
+                            error!("Failed to send power off command");
+                            continue;
+                        } else {
+                            info!("Sent power off command");
+                        }
+                    }
+                    _ => {
+                        warn!("Unknown power command: {}", msg);
+                    }
+                }
 
                 client
                     .send_message(
@@ -220,10 +267,10 @@ pub async fn mqtt_task(stack: Stack<'static>) {
                     .await
                     .unwrap();
 
-                println!("Published state message: {:?}", &data_owned);
+                info!("Published state message: {=[?]}", &data_owned);
             }
             _ => {
-                println!("Unknown topic: {}", topic);
+                info!("Unknown topic: {}", topic);
             }
         }
     }

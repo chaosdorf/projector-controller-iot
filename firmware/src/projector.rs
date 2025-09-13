@@ -1,10 +1,13 @@
+use defmt::debug;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
 use embedded_io::Write;
 use esp_hal::uart::Uart;
 
-enum ProjectorError {
+#[derive(Debug)]
+pub enum ProjectorError {
     WriteError,
     ParseError,
+    ReadError,
 }
 
 /// PT-AH1000E Projector Control via RS232
@@ -20,24 +23,47 @@ impl<'a, Dm: esp_hal::DriverMode> Projector<'a, Dm> {
 
     //
     fn send(&mut self, data: &[u8]) -> Result<(), ProjectorError> {
+        debug!(
+            "Sending: {:?}",
+            core::str::from_utf8(data).unwrap_or("<invalid utf8>")
+        );
+
         self.port
             .write(data)
             .map_err(|_| ProjectorError::WriteError)
             .map(|_| ())
     }
 
-    fn receive(&mut self, buffer: &mut [u8]) -> usize {
+    fn receive(&mut self, buffer: &mut [u8]) -> Result<usize, ProjectorError> {
         let mut count = 0;
-        for byte in buffer.iter_mut() {
-            match self.port.read() {
-                Ok(b) => {
-                    *byte = b;
+
+        // read until \r or buffer full
+        let mut tmp_buf = [0u8; 1];
+
+        loop {
+            match self.port.read(&mut tmp_buf) {
+                Ok(_) => {
+                    if count >= buffer.len() {
+                        break;
+                    }
+                    buffer[count] = tmp_buf[0];
                     count += 1;
+
+                    // EOL
+                    if tmp_buf[0] == b'\r' {
+                        break;
+                    }
                 }
-                Err(_) => break,
+                Err(_) => break, // no more data
             }
         }
-        count
+
+        debug!(
+            "Received: {:?}",
+            core::str::from_utf8(&buffer[..count]).unwrap_or("<invalid utf8>")
+        );
+
+        Ok(count)
     }
 
     pub fn power_on(&mut self) -> Result<(), ProjectorError> {
@@ -79,7 +105,7 @@ impl<'a, Dm: esp_hal::DriverMode> Projector<'a, Dm> {
     pub fn is_on(&mut self) -> Result<bool, ProjectorError> {
         let mut buffer = [0u8; 16];
         self.send(b"QPW\r")?;
-        let len = self.receive(&mut buffer);
+        let len = self.receive(&mut buffer)?;
         let response = core::str::from_utf8(&buffer[..len]).unwrap_or("");
 
         match response.trim() {

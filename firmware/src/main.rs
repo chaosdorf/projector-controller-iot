@@ -5,8 +5,10 @@
     reason = "mem::forget is generally not safe to do with esp_hal types, especially those \
     holding buffers for the duration of a data transfer."
 )]
-#![warn(missing_docs)]
+// #![warn(missing_docs)]
 
+use alloc::string::ToString;
+use defmt::{debug, error, info, warn};
 use embassy_executor::Spawner;
 use embassy_net::StackResources;
 use embassy_time::{Duration, Timer};
@@ -14,7 +16,7 @@ use esp_hal::gpio::{Output, OutputConfig};
 use esp_hal::rng::Rng;
 use esp_hal::timer::systimer::SystemTimer;
 use esp_hal::timer::timg::TimerGroup;
-use esp_println::println;
+use esp_println as _;
 use esp_wifi::EspWifiController;
 
 mod io;
@@ -73,16 +75,11 @@ async fn main(spawner: Spawner) {
     ///////////////////////////////////////////////////////////////////////////
 
     // UART1
-    let uart1 = esp_hal::uart::Uart::new(
-        peripherals.UART1,
-        esp_hal::uart::config::Config {
-            baudrate: 9600,
-            ..Default::default()
-        },
-    )
-    .unwrap();
+    let uart_conf = esp_hal::uart::Config::default().with_baudrate(9600);
 
-    let mut projector = projector::Projector::new(uart1);
+    let uart1 = esp_hal::uart::Uart::new(peripherals.UART1, uart_conf).unwrap();
+
+    let projector = projector::Projector::new(uart1);
 
     {
         *(io::PROJECTOR.lock().await) = Some(projector);
@@ -142,10 +139,10 @@ async fn main(spawner: Spawner) {
         }
     }
 
-    println!("Waiting to get IP address...");
+    info!("Waiting to get IP address...");
     loop {
         if let Some(config) = stack.config_v4() {
-            println!("Got IP: {}", config.address);
+            info!("Got IP: {}", config.address.to_string().as_str());
             break;
         }
         {
