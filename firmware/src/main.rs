@@ -16,13 +16,17 @@ use esp_hal::gpio::{Output, OutputConfig};
 use esp_hal::rng::Rng;
 use esp_hal::timer::systimer::SystemTimer;
 use esp_hal::timer::timg::TimerGroup;
+use esp_hal::uart::StopBits;
 use esp_println as _;
 use esp_wifi::EspWifiController;
+
+use crate::projector::Projector;
 
 mod io;
 mod log;
 mod mqtt;
 mod net;
+mod ota;
 mod projector;
 
 #[panic_handler]
@@ -75,17 +79,21 @@ async fn main(spawner: Spawner) {
     ///////////////////////////////////////////////////////////////////////////
 
     // UART1
-    let uart_conf = esp_hal::uart::Config::default().with_baudrate(9600);
+    let uart_conf = esp_hal::uart::Config::default()
+        .with_baudrate(9600)
+        .with_stop_bits(StopBits::_1);
 
     let uart1 = esp_hal::uart::Uart::new(peripherals.UART1, uart_conf).unwrap();
 
-    let projector = projector::Projector::new(uart1);
+    let projector = Projector::new(uart1);
 
     {
         *(io::PROJECTOR.lock().await) = Some(projector);
     }
 
-    // WIFI
+    ////////////////////////////////////////////////////////////////////////////
+    // WIFI and NETWORKING
+    ////////////////////////////////////////////////////////////////////////////
     let timer0 = SystemTimer::new(peripherals.SYSTIMER);
     esp_hal_embassy::init(timer0.alarm0);
 
@@ -159,6 +167,7 @@ async fn main(spawner: Spawner) {
     }
 
     spawner.spawn(mqtt::mqtt_task(stack)).ok();
+    spawner.spawn(ota::listen(stack)).ok();
 
     let _ = spawner;
 
