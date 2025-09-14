@@ -17,11 +17,11 @@ struct OtaHeader {
 
 /// Runs the OTA update server.
 #[embassy_executor::task]
-pub async fn listen(stack: Stack<'static>) -> ! {
+pub async fn listen(stack: &'static Stack<'static>) -> ! {
     let mut rx_buf = [0; RX_BUF_SIZE];
     let mut tx_buf = [0; TX_BUF_SIZE];
 
-    let mut socket = TcpSocket::new(stack, &mut rx_buf, &mut tx_buf);
+    let mut socket = TcpSocket::new(*stack, &mut rx_buf, &mut tx_buf);
     socket.set_timeout(Some(Duration::from_secs(20)));
 
     let endpoint = embassy_net::IpListenEndpoint {
@@ -29,9 +29,11 @@ pub async fn listen(stack: Stack<'static>) -> ! {
         port: 1337,
     };
 
-    socket.accept(endpoint).await.unwrap();
+    debug!("Listening on port 1337");
 
     loop {
+        socket.accept(endpoint).await.unwrap();
+
         info!("Starting OTA update...");
 
         let mut header_buf = [0u8; core::mem::size_of::<OtaHeader>()];

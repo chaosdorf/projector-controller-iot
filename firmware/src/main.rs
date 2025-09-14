@@ -5,12 +5,13 @@
     reason = "mem::forget is generally not safe to do with esp_hal types, especially those \
     holding buffers for the duration of a data transfer."
 )]
+#![feature(type_alias_impl_trait)]
 // #![warn(missing_docs)]
 
 use alloc::string::ToString;
 use defmt::{debug, error, info, warn};
 use embassy_executor::Spawner;
-use embassy_net::StackResources;
+use embassy_net::{Stack, StackResources};
 use embassy_time::{Duration, Timer};
 use esp_hal::gpio::{Output, OutputConfig};
 use esp_hal::rng::Rng;
@@ -19,6 +20,7 @@ use esp_hal::timer::timg::TimerGroup;
 use esp_hal::uart::StopBits;
 use esp_println as _;
 use esp_wifi::EspWifiController;
+use static_cell::make_static;
 
 use crate::projector::Projector;
 
@@ -123,6 +125,8 @@ async fn main(spawner: Spawner) {
         seed,
     );
 
+    let stack: &'static Stack<'static> = make_static!(stack);
+
     spawner.spawn(net::connection(controller)).ok();
     spawner.spawn(net::net_task(runner)).ok();
 
@@ -166,8 +170,8 @@ async fn main(spawner: Spawner) {
         }
     }
 
-    spawner.spawn(mqtt::mqtt_task(stack)).ok();
-    spawner.spawn(ota::listen(stack)).ok();
+    spawner.spawn(ota::listen(&stack)).unwrap();
+    spawner.spawn(mqtt::mqtt_task(&stack)).unwrap();
 
     let _ = spawner;
 
