@@ -97,7 +97,7 @@ async fn main(spawner: Spawner) {
         esp_wifi::init(timg0.timer0, rng.clone()).unwrap()
     );
 
-    // test leds
+    io::test_leds().await;
 
     let (controller, interfaces) = esp_wifi::wifi::new(&esp_wifi_ctrl, peripherals.WIFI).unwrap();
 

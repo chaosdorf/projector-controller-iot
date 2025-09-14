@@ -34,7 +34,7 @@ struct DiscoveryPacket<'a> {
     retain: bool,
 }
 
-// send Home Assistant MQTT discovery packets and subscribe to command topics
+/// send Home Assistant MQTT discovery packets and subscribe to command topics
 async fn homassistant_initialization(
     client: &mut MqttClient<'static, TcpSocket<'_>, 5, CountingRng>,
 ) {
@@ -86,24 +86,30 @@ async fn homassistant_initialization(
         });
 
         let topic = match *id {
-            "menu" => "homeassistant/button/projector_menu",
-            "enter" => "homeassistant/button/projector_enter",
-            "up" => "homeassistant/button/projector_up",
-            "down" => "homeassistant/button/projector_down",
-            "left" => "homeassistant/button/projector_left",
-            "right" => "homeassistant/button/projector_right",
-            "back" => "homeassistant/button/projector_back",
+            "menu" => "homeassistant/button/projector_menu/config",
+            "enter" => "homeassistant/button/projector_enter/config",
+            "up" => "homeassistant/button/projector_up/config",
+            "down" => "homeassistant/button/projector_down/config",
+            "left" => "homeassistant/button/projector_left/config",
+            "right" => "homeassistant/button/projector_right/config",
+            "back" => "homeassistant/button/projector_back/config",
             _ => continue,
         };
 
         debug!("Publishing {} config (data: {})", id, data.as_str());
 
-        topics.push(topic).unwrap();
-
-        publish_config(client, alloc::format!("{}/config", topic).as_str(), &data).await;
+        publish_config(client, topic, &data).await;
 
         debug!("Published {} config", id);
     }
+
+    topics.push("projector-controller/cmd/menu").unwrap();
+    topics.push("projector-controller/cmd/enter").unwrap();
+    topics.push("projector-controller/cmd/up").unwrap();
+    topics.push("projector-controller/cmd/down").unwrap();
+    topics.push("projector-controller/cmd/left").unwrap();
+    topics.push("projector-controller/cmd/right").unwrap();
+    topics.push("projector-controller/cmd/back").unwrap();
 
     // Binary sensor for actual power state
     let status = json!({
