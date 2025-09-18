@@ -19,6 +19,8 @@ use esp_hal::timer::timg::TimerGroup;
 use esp_println as _;
 use esp_wifi::EspWifiController;
 
+use crate::projector::Projector;
+
 mod io;
 mod log;
 mod mqtt;
@@ -77,9 +79,12 @@ async fn main(spawner: Spawner) {
     // UART1
     let uart_conf = esp_hal::uart::Config::default().with_baudrate(9600);
 
-    let uart1 = esp_hal::uart::Uart::new(peripherals.UART1, uart_conf).unwrap();
+    let uart1 = esp_hal::uart::Uart::new(peripherals.UART1, uart_conf)
+        .unwrap()
+        .with_rx(peripherals.GPIO18)
+        .with_tx(peripherals.GPIO17);
 
-    let projector = projector::Projector::new(uart1);
+    let projector = Projector::new(uart1);
 
     {
         *(io::PROJECTOR.lock().await) = Some(projector);
