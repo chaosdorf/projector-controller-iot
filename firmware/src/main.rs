@@ -12,6 +12,7 @@ use defmt::{debug, error, info, warn};
 use embassy_executor::Spawner;
 use embassy_net::StackResources;
 use embassy_time::{Duration, Timer};
+use esp_hal::config::WatchdogConfig;
 use esp_hal::gpio::{Output, OutputConfig};
 use esp_hal::rng::Rng;
 use esp_hal::timer::systimer::SystemTimer;
@@ -49,7 +50,7 @@ esp_bootloader_esp_idf::esp_app_desc!();
 async fn main(spawner: Spawner) {
     esp_println::logger::init_logger_from_env();
 
-    let config = esp_hal::Config::default();
+    let config = esp_hal::Config::default().with_watchdog(WatchdogConfig::default());
     let peripherals = esp_hal::init(config);
 
     // GPIOs

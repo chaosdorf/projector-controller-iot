@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use defmt::debug;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
 use embedded_io::Write;
@@ -21,23 +22,25 @@ impl<'a, Dm: esp_hal::DriverMode> Projector<'a, Dm> {
         Self { port }
     }
 
-    //
-    fn send(&mut self, data: &[u8]) -> Result<(), ProjectorError> {
-        debug!(
-            "Sending: {:?}",
-            core::str::from_utf8(data).unwrap_or("<invalid utf8>")
-        );
+    pub fn send(&mut self, data: &[u8]) -> Result<(), ProjectorError> {
+        // convert to 0x02 ...data 0x03
+        let mut framed_data = Vec::with_capacity(data.len() + 2);
+        framed_data.push(0x02); // STX
+        framed_data.extend_from_slice(data);
+        framed_data.push(0x03); // ETX
+
+        // debug!("Sending: {}", framed_data);
 
         self.port
-            .write(data)
+            .write(&framed_data)
             .map_err(|_| ProjectorError::WriteError)
             .map(|_| ())
     }
 
-    fn receive(&mut self, buffer: &mut [u8]) -> Result<usize, ProjectorError> {
+    pub fn receive(&mut self, buffer: &mut [u8]) -> Result<usize, ProjectorError> {
         let mut count = 0;
 
-        // read until \r or buffer full
+        // read until 0x3 or buffer full
         let mut tmp_buf = [0u8; 1];
 
         loop {
@@ -50,7 +53,7 @@ impl<'a, Dm: esp_hal::DriverMode> Projector<'a, Dm> {
                     count += 1;
 
                     // EOL
-                    if tmp_buf[0] == b'\r' {
+                    if tmp_buf[0] == 0x3 {
                         break;
                     }
                 }
@@ -67,44 +70,44 @@ impl<'a, Dm: esp_hal::DriverMode> Projector<'a, Dm> {
     }
 
     pub fn power_on(&mut self) -> Result<(), ProjectorError> {
-        self.send(b"PON\r")
+        self.send(b"PON")
     }
 
     pub fn power_off(&mut self) -> Result<(), ProjectorError> {
-        self.send(b"POF\r")
+        self.send(b"POF")
     }
 
     pub fn menu(&mut self) -> Result<(), ProjectorError> {
-        self.send(b"OMN\r")
+        self.send(b"OMN")
     }
 
     pub fn enter(&mut self) -> Result<(), ProjectorError> {
-        self.send(b"OEN\r")
+        self.send(b"OEN")
     }
 
     pub fn up(&mut self) -> Result<(), ProjectorError> {
-        self.send(b"OBK\r")
+        self.send(b"OBK")
     }
 
     pub fn left(&mut self) -> Result<(), ProjectorError> {
-        self.send(b"OCL\r")
+        self.send(b"OCL")
     }
 
     pub fn right(&mut self) -> Result<(), ProjectorError> {
-        self.send(b"OCR\r")
+        self.send(b"OCR")
     }
 
     pub fn down(&mut self) -> Result<(), ProjectorError> {
-        self.send(b"OCU\r")
+        self.send(b"OCU")
     }
 
     pub fn back(&mut self) -> Result<(), ProjectorError> {
-        self.send(b"OCD\r")
+        self.send(b"OCD")
     }
 
     pub fn is_on(&mut self) -> Result<bool, ProjectorError> {
         let mut buffer = [0u8; 16];
-        self.send(b"QPW\r")?;
+        self.send(b"QPW")?;
         let len = self.receive(&mut buffer)?;
         let response = core::str::from_utf8(&buffer[..len]).unwrap_or("");
 

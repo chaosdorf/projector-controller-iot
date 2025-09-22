@@ -110,6 +110,7 @@ async fn homassistant_initialization(
     topics.push("projector-controller/cmd/left").unwrap();
     topics.push("projector-controller/cmd/right").unwrap();
     topics.push("projector-controller/cmd/back").unwrap();
+    topics.push("projector-controller/cmd/raw").unwrap();
 
     // Binary sensor for actual power state
     let status = json!({
@@ -142,26 +143,26 @@ async fn homassistant_initialization(
 
     debug!("Published availability online");
 
-    // actual power state
-    let mut projector = io::PROJECTOR.lock().await;
-    let projector = projector.as_mut().unwrap();
-    let power_state = if projector.is_on().unwrap_or(false) {
-        "ON"
-    } else {
-        "OFF"
-    };
-
-    client
-        .send_message(
-            "projector-controller/stat/power",
-            power_state.as_bytes(),
-            QualityOfService::QoS0,
-            true,
-        )
-        .await
-        .unwrap();
-
-    debug!("Published initial power state: {}", power_state);
+    // // actual power state
+    // let mut projector = io::PROJECTOR.lock().await;
+    // let projector = projector.as_mut().unwrap();
+    // let power_state = if projector.is_on().unwrap_or(false) {
+    //     "ON"
+    // } else {
+    //     "OFF"
+    // };
+    //
+    // client
+    //     .send_message(
+    //         "projector-controller/stat/power",
+    //         power_state.as_bytes(),
+    //         QualityOfService::QoS0,
+    //         true,
+    //     )
+    //     .await
+    //     .unwrap();
+    //
+    // debug!("Published initial power state: {}", power_state);
 
     // Subscribe to command topics
     client.subscribe_to_topics(&topics).await.unwrap();
@@ -296,6 +297,9 @@ pub async fn mqtt_task(stack: Stack<'static>) {
                             .unwrap();
 
                         info!("Published state message: {=[?]}", &data_owned);
+                    }
+                    "projector-controller/cmd/raw" => {
+                        projector.send(data).unwrap();
                     }
                     _ => {
                         info!("Unknown topic: {}", topic);
